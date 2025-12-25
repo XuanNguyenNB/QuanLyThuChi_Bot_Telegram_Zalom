@@ -1004,7 +1004,33 @@ def main() -> None:
     
     # Run the bot
     logger.info("Starting bot...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    
+    # Check if we're in main thread or not
+    import threading
+    if threading.current_thread() is threading.main_thread():
+        # Main thread - use run_polling
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+    else:
+        # In thread - use async approach
+        import asyncio
+        loop = asyncio.get_event_loop()
+        
+        async def start_bot():
+            await application.initialize()
+            await application.start()
+            await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+            
+            try:
+                # Keep running until stopped
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                pass
+            finally:
+                await application.updater.stop()
+                await application.stop()
+                await application.shutdown()
+        
+        loop.run_until_complete(start_bot())
 
 
 if __name__ == "__main__":
