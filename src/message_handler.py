@@ -3,8 +3,22 @@ Shared message handling logic for both Telegram and Zalo bots.
 """
 
 import logging
+import os
 from dataclasses import dataclass
 from typing import Optional, Tuple, List
+
+# Configure logging with file output for debugging
+import sys
+log_file = '/home/botuser/logs/message_handler.log' if sys.platform != 'win32' else 'logs/message_handler.log'
+os.makedirs(os.path.dirname(log_file), exist_ok=True)
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()
+    ]
+)
 
 from .models import get_session, Category
 from .services import (

@@ -31,10 +31,17 @@ from .utils import format_currency, format_currency_full, format_date
 from .ai_service import is_ai_enabled, transcribe_voice, parse_with_ai, generate_transaction_comment
 from .message_handler import process_text_message
 
-# Configure logging
+# Configure logging with file output for debugging
+import sys
+log_file = '/home/botuser/logs/zalo_bot.log' if sys.platform != 'win32' else 'logs/zalo_bot.log'
+os.makedirs(os.path.dirname(log_file), exist_ok=True)
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
+    level=logging.INFO,
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 

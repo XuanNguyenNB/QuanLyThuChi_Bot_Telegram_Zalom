@@ -6,6 +6,19 @@ import asyncio
 import json
 import logging
 import os
+
+# Configure logging with file output for debugging
+import sys
+log_file = '/home/botuser/logs/ai_service.log' if sys.platform != 'win32' else 'logs/ai_service.log'
+os.makedirs(os.path.dirname(log_file), exist_ok=True)
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()
+    ]
+)
 from dataclasses import dataclass
 from typing import List, Optional
 
