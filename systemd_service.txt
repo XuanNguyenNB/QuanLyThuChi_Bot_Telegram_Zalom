@@ -1,8 +1,8 @@
-# Systemd service file for Expense Bot
-# Save as: /etc/systemd/system/expense-bot.service
+# Systemd service file for Finance Bot
+# Save as: /etc/systemd/system/finance_bot.service
 
 [Unit]
-Description=Telegram & Zalo Expense Bot
+Description=Telegram & Zalo Finance Bot
 After=network.target
 
 [Service]
@@ -18,7 +18,7 @@ RestartSec=10
 # Logging
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=expense-bot
+SyslogIdentifier=finance_bot
 
 [Install]
 WantedBy=multi-user.target
