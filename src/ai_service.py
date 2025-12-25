@@ -16,9 +16,14 @@ logging.basicConfig(
     level=logging.INFO,
     handlers=[
         logging.FileHandler(log_file, encoding='utf-8'),
-        logging.StreamHandler(encoding='utf-8') if sys.platform == 'win32' else logging.StreamHandler()
+        logging.StreamHandler(sys.stdout)
     ]
 )
+# Set console encoding for Windows
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
 from dataclasses import dataclass
 from typing import List, Optional
 
