@@ -157,22 +157,16 @@ async def today_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         # Income section
         lines.append(f"💰 *Thu: {format_currency_full(summary.total_income)}*")
         if income_txs:
-            lines.append(f"� Chi tiết ({len(income_txs)} giao dịch):")
             for tx in income_txs[:5]:
-                cat_name = tx.category.name if tx.category else "Khác"
-                lines.append(f"  • {format_currency(tx.amount)} - {tx.note or 'N/A'} ({cat_name})")
+                lines.append(f"  + {format_currency(tx.amount)} - {tx.note or 'N/A'}")
             if len(income_txs) > 5:
                 lines.append(f"  _... và {len(income_txs) - 5} giao dịch khác_")
-        
-        lines.append("")  # Empty line
         
         # Expense section
         lines.append(f"💸 *Chi: {format_currency_full(summary.total_expense)}*")
         if expense_txs:
-            lines.append(f"📝 Chi tiết ({len(expense_txs)} giao dịch):")
             for tx in expense_txs[:5]:
-                cat_name = tx.category.name if tx.category else "Khác"
-                lines.append(f"  • {format_currency(tx.amount)} - {tx.note or 'N/A'} ({cat_name})")
+                lines.append(f"  - {format_currency(tx.amount)} - {tx.note or 'N/A'}")
             if len(expense_txs) > 5:
                 lines.append(f"  _... và {len(expense_txs) - 5} giao dịch khác_")
         

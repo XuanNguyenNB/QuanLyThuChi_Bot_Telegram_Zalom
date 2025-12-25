@@ -234,15 +234,12 @@ async def handle_command(bot: ZaloBot, chat_id: str, user_id: str, user_name: st
         lines.append(f"💰 Thu: {format_currency_full(summary.total_income)}")
         if income_txs:
             for tx in income_txs[:3]:
-                cat_name = tx.category.name if tx.category else "Khác"
-                lines.append(f"  • {format_currency(tx.amount)} - {tx.note or 'N/A'}")
+                lines.append(f"  + {format_currency(tx.amount)} - {tx.note or 'N/A'}")
         
-        lines.append("")
         lines.append(f"💸 Chi: {format_currency_full(summary.total_expense)}")
         if expense_txs:
             for tx in expense_txs[:5]:
-                cat_name = tx.category.name if tx.category else "Khác"
-                lines.append(f"  • {format_currency(tx.amount)} - {tx.note or 'N/A'}")
+                lines.append(f"  - {format_currency(tx.amount)} - {tx.note or 'N/A'}")
         
         balance = summary.total_income - summary.total_expense
         lines.append("")
