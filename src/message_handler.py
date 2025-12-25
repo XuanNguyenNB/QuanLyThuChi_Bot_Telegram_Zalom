@@ -97,10 +97,8 @@ async def process_text_message(
         MessageResult with response and transaction info
     """
     text = text.strip()
-    logger.info(f"Processing text message: '{text}' (length: {len(text)})")
     
     if len(text) < 2:
-        logger.info(f"Message too short, returning empty response")
         return MessageResult(response="🤔 Tin nhắn quá ngắn. Hãy gõ rõ hơn nhé!")
     
     async with await get_session() as session:
