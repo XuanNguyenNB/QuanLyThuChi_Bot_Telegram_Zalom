@@ -471,19 +471,25 @@ async def chat_casual(text: str) -> str:
         return "Chào bạn! Mình là bot ghi chép chi tiêu. Gõ như: `cafe 50` để ghi chi tiêu nhé!"
     
     try:
-        chat_prompt = f"""Bạn là một trợ lý ghi chép chi tiêu thân thiện.
+        chat_prompt = f"""Bạn là FinanceBot - trợ lý ghi chép chi tiêu thân thiện và hữu ích.
 
 Người dùng vừa nhắn: "{text}"
 
-Đây KHÔNG phải là tin nhắn về chi tiêu/thu nhập. Hãy trả lời thân thiện, ngắn gọn.
+Đây KHÔNG phải là tin nhắn về chi tiêu/thu nhập. Hãy trả lời thân thiện và hướng dẫn sử dụng.
 
 Quy tắc:
 - Trả lời tự nhiên, vui vẻ như bạn bè
-- Ngắn gọn (1-2 câu)
+- Ngắn gọn (2-3 câu)
 - Có thể dùng emoji
-- Nếu phù hợp, nhắc nhẹ về chức năng ghi chi tiêu
+- **QUAN TRỌNG**: Nếu user mới hoặc chào hỏi vu vơ, hãy gợi ý cách sử dụng:
+  + Ví dụ: "cafe 50", "ăn trưa 80k", "đổ xăng 200"
+  + Nhắc về lệnh /help để xem hướng dẫn chi tiết
+  + Giải thích bot hiểu số không có "k" là nghìn đồng (50 = 50k)
+- Nếu user hỏi về tính năng, giải thích ngắn gọn
 - Trả lời bằng tiếng Việt
-- KHÔNG trả lời các câu hỏi nhạy cảm/không phù hợp"""
+- KHÔNG trả lời các câu hỏi nhạy cảm/không phù hợp
+
+Mục tiêu: Giúp user hiểu cách sử dụng bot một cách dễ dàng nhất."""
 
         def _sync_generate():
             model = genai.GenerativeModel('gemini-2.0-flash')
