@@ -12,17 +12,30 @@ import signal
 import threading
 import time
 
-from src.bot import main as telegram_main
 from src.zalo_bot import main as zalo_main
 
 
 def run_telegram():
-    """Run Telegram bot in its own thread"""
+    """Run Telegram bot in its own thread with new event loop"""
     try:
         print("📱 Starting Telegram bot...")
+        # Create new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Import and run telegram bot
+        from src.bot import main as telegram_main
         telegram_main()
     except Exception as e:
         print(f"❌ Telegram bot error: {e}")
+    finally:
+        # Clean up event loop
+        try:
+            loop = asyncio.get_event_loop()
+            if not loop.is_closed():
+                loop.close()
+        except:
+            pass
 
 
 async def run_both():
@@ -61,6 +74,7 @@ def main():
     
     if mode == "telegram":
         print("🚀 Khởi động Telegram Bot...")
+        from src.bot import main as telegram_main
         telegram_main()
     elif mode == "zalo":
         print("🚀 Khởi động Zalo Bot...")
