@@ -45,9 +45,14 @@ logging.basicConfig(
 )
 # Set console encoding for Windows
 if sys.platform == 'win32':
-    import codecs
-    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
-    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
+    try:
+        import codecs
+        if hasattr(sys.stdout, 'detach'):
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
+            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
+    except (AttributeError, OSError):
+        # Windows console doesn't support detach, use default encoding
+        pass
 logger = logging.getLogger(__name__)
 
 load_dotenv()

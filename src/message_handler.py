@@ -21,9 +21,14 @@ logging.basicConfig(
 )
 # Set console encoding for Windows
 if sys.platform == 'win32':
-    import codecs
-    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
-    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
+    try:
+        import codecs
+        if hasattr(sys.stdout, 'detach'):
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
+            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
+    except (AttributeError, OSError):
+        # Windows console doesn't support detach, use default encoding
+        pass
 
 from .models import get_session, Category
 from .services import (
@@ -92,9 +97,11 @@ async def process_text_message(
         MessageResult with response and transaction info
     """
     text = text.strip()
+    logger.info(f"Processing text message: '{text}' (length: {len(text)})")
     
     if len(text) < 2:
-        return MessageResult(response="")
+        logger.info(f"Message too short, returning empty response")
+        return MessageResult(response="🤔 Tin nhắn quá ngắn. Hãy gõ rõ hơn nhé!")
     
     async with await get_session() as session:
         # Check if this is a question/query
