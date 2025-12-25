@@ -51,7 +51,7 @@ class DatabaseBackup:
             
             # Copy database file
             if self.db_path.exists():
-                shutil.copy2(self.db_path, backup_path / "expense_bot.db")
+                shutil.copy2(self.db_path, backup_path / "finance_bot.db")
                 logger.info(f"Database copied to {backup_path}")
             else:
                 logger.warning(f"Database file not found: {self.db_path}")
@@ -84,41 +84,35 @@ class DatabaseBackup:
     def authenticate_drive(self):
         """Authenticate with Google Drive API"""
         creds = None
-        token_file = Path(self.credentials_file).parent / 'token.pickle'
+        token_file = Path(self.credentials_file).parent / "token.json"
         
         # Load existing token
         if token_file.exists():
-            with open(token_file, 'rb') as token:
-                creds = pickle.load(token)
+            creds = Credentials.from_authorized_user_file(str(token_file), SCOPES)
         
         # If no valid credentials, get new ones
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                if not Path(self.credentials_file).exists():
-                    logger.error(f"Credentials file not found: {self.credentials_file}")
-                    return None
-                    
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_file, SCOPES)
-                creds = flow.run_local_server(port=0)
+                # Use console-based authentication for headless servers
+                creds = flow.run_console()
             
             # Save credentials for next run
-            with open(token_file, 'wb') as token:
-                pickle.dump(creds, token)
+            with open(token_file, 'w') as token:
+                token.write(creds.to_json())
         
-        return creds
+        return build('drive', 'v3', credentials=creds)
     
     def upload_to_drive(self, file_path, folder_id=None):
         """Upload backup file to Google Drive"""
         try:
-            creds = self.authenticate_drive()
-            if not creds:
+            service = self.authenticate_drive()
+            if not service:
                 logger.error("Failed to authenticate with Google Drive")
                 return False
-            
-            service = build('drive', 'v3', credentials=creds)
             
             file_metadata = {
                 'name': file_path.name,
