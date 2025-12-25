@@ -9,7 +9,8 @@ Usage:
 import asyncio
 import sys
 import signal
-from concurrent.futures import ThreadPoolExecutor
+import threading
+import time
 
 from src.bot import main as telegram_main
 from src.zalo_bot import main as zalo_main
@@ -18,6 +19,7 @@ from src.zalo_bot import main as zalo_main
 def run_telegram():
     """Run Telegram bot in its own thread"""
     try:
+        print("📱 Starting Telegram bot...")
         telegram_main()
     except Exception as e:
         print(f"❌ Telegram bot error: {e}")
@@ -30,21 +32,27 @@ async def run_both():
     print("   💬 Zalo Bot")
     print("─" * 30)
     
-    # Run Telegram in thread (it uses run_polling which blocks)
-    executor = ThreadPoolExecutor(max_workers=1)
-    loop = asyncio.get_event_loop()
+    # Start Telegram in separate thread
+    telegram_thread = threading.Thread(target=run_telegram, daemon=True)
+    telegram_thread.start()
     
-    # Start Telegram in background thread
-    telegram_future = loop.run_in_executor(executor, run_telegram)
+    # Give Telegram bot time to start
+    await asyncio.sleep(2)
     
     # Run Zalo bot in main async loop
     try:
+        print("💬 Starting Zalo bot...")
         await zalo_main()
     except Exception as e:
         print(f"❌ Zalo bot error: {e}")
-    
-    # Wait for Telegram
-    await telegram_future
+    finally:
+        # Keep main thread alive
+        try:
+            while telegram_thread.is_alive():
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            print("\n🛑 Shutting down bots...")
+            return
 
 
 def main():
