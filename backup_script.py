@@ -98,7 +98,16 @@ class DatabaseBackup:
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_file, SCOPES)
                 # Use console-based authentication for headless servers
-                creds = flow.run_console()
+                flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
+                auth_url, _ = flow.authorization_url(prompt='consent')
+                
+                print(f'\nPlease go to this URL and authorize the application:')
+                print(f'{auth_url}')
+                print('\nEnter the authorization code: ', end='')
+                code = input().strip()
+                
+                flow.fetch_token(code=code)
+                creds = flow.credentials
             
             # Save credentials for next run
             with open(token_file, 'w') as token:
