@@ -39,8 +39,8 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
     handlers=[
-        logging.FileHandler(log_file),
-        logging.StreamHandler()
+        logging.FileHandler(log_file, encoding='utf-8'),
+        logging.StreamHandler(encoding='utf-8') if sys.platform == 'win32' else logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
@@ -392,8 +392,12 @@ async def handle_text(bot: ZaloBot, chat_id: str, user_id: str, user_name: str, 
             user_display_name=user_name
         )
         
+        logger.info(f"Message handler result: response='{result.response}', is_transaction={result.is_transaction}")
+        
         if result.response:
             await bot.send_message(chat_id, result.response)
+        else:
+            logger.warning(f"Empty response for text: '{text}'")
     
     except Exception as e:
         logger.error(f"Error handling text: {e}")

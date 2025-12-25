@@ -15,8 +15,8 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
     handlers=[
-        logging.FileHandler(log_file),
-        logging.StreamHandler()
+        logging.FileHandler(log_file, encoding='utf-8'),
+        logging.StreamHandler(encoding='utf-8') if sys.platform == 'win32' else logging.StreamHandler()
     ]
 )
 from dataclasses import dataclass

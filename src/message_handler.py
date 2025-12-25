@@ -15,8 +15,8 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
     handlers=[
-        logging.FileHandler(log_file),
-        logging.StreamHandler()
+        logging.FileHandler(log_file, encoding='utf-8'),
+        logging.StreamHandler(encoding='utf-8') if sys.platform == 'win32' else logging.StreamHandler()
     ]
 )
 
@@ -87,20 +87,25 @@ async def process_text_message(
         MessageResult with response and transaction info
     """
     text = text.strip()
+    logger.info(f"Processing text message: '{text}' for user {db_user_id}")
     
     if len(text) < 2:
+        logger.info("Text too short, returning empty response")
         return MessageResult(response="")
     
     async with await get_session() as session:
         # Check if this is a question/query
         if is_question(text):
+            logger.info("Detected as question")
             result = await _handle_question(session, db_user_id, text)
             return MessageResult(response=result, is_transaction=False)
         
         # Try to parse as transaction
+        logger.info("Trying to parse as transaction")
         tx_result = await _handle_transaction(session, db_user_id, text)
         
         if tx_result.success:
+            logger.info("Successfully parsed as transaction")
             return MessageResult(
                 response=tx_result.response,
                 is_transaction=True,
@@ -108,10 +113,14 @@ async def process_text_message(
             )
         
         # Neither question nor transaction - casual chat
+        logger.info("Not transaction or question, trying casual chat")
         if is_ai_enabled():
+            logger.info("AI enabled, calling chat_casual")
             reply = await chat_casual(text)
+            logger.info(f"chat_casual returned: '{reply}'")
             return MessageResult(response=f"💬 {reply}", is_transaction=False)
         else:
+            logger.info("AI disabled, returning default response")
             return MessageResult(
                 response="🤔 Không hiểu. Gõ như: cafe 50 hoặc /help",
                 is_transaction=False
