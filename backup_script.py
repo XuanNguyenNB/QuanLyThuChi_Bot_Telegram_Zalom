@@ -180,7 +180,7 @@ class DatabaseBackup:
 
 def main():
     # Configuration
-    DB_PATH = "/home/botuser/QuanLyThuChi_Bot_Telegram_Zalom/expense_bot.db"
+    DB_PATH = "/home/botuser/QuanLyThuChi_Bot_Telegram_Zalom/finance_bot.db"
     BACKUP_DIR = "/home/botuser/backups"
     CREDENTIALS_FILE = "/home/botuser/credentials.json"
     DRIVE_FOLDER_ID = None  # Set this to your Google Drive folder ID
