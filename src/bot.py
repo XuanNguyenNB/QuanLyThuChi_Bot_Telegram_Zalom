@@ -386,7 +386,17 @@ async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         async with await get_session() as session:
             linked_user = await link_user_by_phone(session, phone, telegram_id=user.id)
             
-            if linked_user and linked_user.zalo_id:
+            if linked_user is None:
+                # Cannot link - telegram_id or phone already linked to another user
+                await update.message.reply_text(
+                    f"❌ *Không thể liên kết*\n\n"
+                    f"SĐT {phone} hoặc tài khoản Telegram của bạn đã được liên kết với tài khoản khác.\n\n"
+                    f"Mỗi SĐT chỉ có thể liên kết với một tài khoản Telegram và một tài khoản Zalo.",
+                    parse_mode="Markdown"
+                )
+                return
+            
+            if linked_user.zalo_id:
                 await update.message.reply_text(
                     f"✅ *Đã liên kết với Zalo!*\n"
                     f"📱 SĐT: {phone}\n\n"
@@ -394,11 +404,6 @@ async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                     parse_mode="Markdown"
                 )
             else:
-                # Just save phone for this user
-                db_user = await get_or_create_user(session, user.id, user.username, user.full_name)
-                db_user.phone = phone
-                await session.commit()
-                
                 await update.message.reply_text(
                     f"📱 *Đã lưu SĐT:* {phone}\n\n"
                     f"Để đồng bộ với Zalo, hãy gõ `/link {phone}` trên Zalo bot.",

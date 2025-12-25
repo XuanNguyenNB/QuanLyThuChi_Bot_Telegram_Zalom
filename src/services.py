@@ -389,37 +389,55 @@ async def link_user_by_phone(
     """Link Telegram and Zalo accounts by phone number"""
     # Find existing user with this phone
     result = await session.execute(select(User).where(User.phone == phone))
-    user = result.scalar_one_or_none()
+    user_with_phone = result.scalar_one_or_none()
     
-    if user:
-        # Update with new platform ID
-        if telegram_id:
-            user.telegram_id = telegram_id
-        if zalo_id:
-            user.zalo_id = zalo_id
-        await session.commit()
-        return user
-    
-    # Find by platform ID and add phone
+    # Find existing user with telegram_id (if provided)
+    user_with_telegram = None
     if telegram_id:
         result = await session.execute(select(User).where(User.telegram_id == telegram_id))
-        user = result.scalar_one_or_none()
-        if user:
-            user.phone = phone
-            if zalo_id:
-                user.zalo_id = zalo_id
-            await session.commit()
-            return user
+        user_with_telegram = result.scalar_one_or_none()
     
+    # Find existing user with zalo_id (if provided)
+    user_with_zalo = None
     if zalo_id:
         result = await session.execute(select(User).where(User.zalo_id == zalo_id))
-        user = result.scalar_one_or_none()
-        if user:
-            user.phone = phone
-            if telegram_id:
-                user.telegram_id = telegram_id
-            await session.commit()
-            return user
+        user_with_zalo = result.scalar_one_or_none()
+    
+    # Case 1: User with phone exists
+    if user_with_phone:
+        # Check if trying to link telegram_id that already belongs to another user
+        if telegram_id and user_with_telegram and user_with_telegram.id != user_with_phone.id:
+            # Telegram ID already linked to different user - cannot link
+            return None
+            
+        # Check if trying to link zalo_id that already belongs to another user  
+        if zalo_id and user_with_zalo and user_with_zalo.id != user_with_phone.id:
+            # Zalo ID already linked to different user - cannot link
+            return None
+            
+        # Safe to update
+        if telegram_id:
+            user_with_phone.telegram_id = telegram_id
+        if zalo_id:
+            user_with_phone.zalo_id = zalo_id
+        await session.commit()
+        return user_with_phone
+    
+    # Case 2: No user with phone, but user with telegram_id exists
+    if user_with_telegram:
+        user_with_telegram.phone = phone
+        if zalo_id:
+            user_with_telegram.zalo_id = zalo_id
+        await session.commit()
+        return user_with_telegram
+    
+    # Case 3: No user with phone or telegram_id, but user with zalo_id exists
+    if user_with_zalo:
+        user_with_zalo.phone = phone
+        if telegram_id:
+            user_with_zalo.telegram_id = telegram_id
+        await session.commit()
+        return user_with_zalo
     
     return None
 
