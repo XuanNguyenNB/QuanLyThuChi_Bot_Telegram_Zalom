@@ -148,8 +148,8 @@ async def today_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             return
         
         # Separate income and expense transactions
-        income_txs = [tx for tx in summary.transactions if tx.category and tx.category.type.value == "income"]
-        expense_txs = [tx for tx in summary.transactions if not tx.category or tx.category.type.value != "income"]
+        income_txs = [tx for tx in summary.transactions if tx.category and tx.category.type.value == "INCOME"]
+        expense_txs = [tx for tx in summary.transactions if not tx.category or tx.category.type.value != "INCOME"]
         
         # Build message
         lines = [f"📅 *Hôm nay* ({format_date(datetime.now())})\n"]

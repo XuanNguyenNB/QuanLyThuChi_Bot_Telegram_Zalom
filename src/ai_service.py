@@ -81,7 +81,9 @@ QUAN TRỌNG - Quy tắc parse:
    - Vì ở Việt Nam không ai dùng 350 đồng, 80 đồng nữa
 5. Nếu có nhiều giao dịch, tách thành nhiều items
 6. Nếu có phép tính (chia đôi, chia 3, /2, trừ vốn...), tính toán số tiền thực tế
-7. Mặc định là CHI (expense), chỉ THU (income) nếu rõ ràng là thu nhập (bán, nhận, lương...)
+7. Mặc định là CHI (expense), chỉ THU (income) nếu rõ ràng là thu nhập:
+   - Từ khóa thu nhập: bán, nhận, lương, thưởng, up rom, up, được cho, trả nợ, thu hồi
+   - "up rom", "up điện thoại", "up máy" = bán điện thoại/máy tính -> type="income"
 8. "trừ vốn X" nghĩa là: số tiền nhận - X = lợi nhuận thực
 
 Danh mục có sẵn: """ + ", ".join(CATEGORIES) + """
@@ -109,6 +111,8 @@ VÍ DỤ PARSE:
 - "siêu thị 500" -> amount=500000, note="siêu thị", category="Chợ/Siêu thị" (500 = 500k)
 - "ăn trưa 150k chia đôi" -> amount=75000, note="ăn trưa", category="Ăn uống"
 - "lương tháng 12 15tr" -> amount=15000000, note="lương tháng 12", category="Lương", type="income"
+- "up rom quốc tế N3 200" -> amount=200000, note="up rom quốc tế N3", category="Lương", type="income"
+- "up rom x6pro colorVS 310" -> amount=310000, note="up rom x6pro colorVS", category="Lương", type="income"
 - "up x7u colorvs 350 trừ vốn 80" -> amount=270000, note="up x7u colorvs", category="Lương", type="income" (350k - 80k = 270k lợi nhuận)
 - "bán gói gpt plus 50" -> amount=50000, note="bán gói gpt plus", category="Lương", type="income"
 

@@ -226,8 +226,8 @@ async def handle_command(bot: ZaloBot, chat_id: str, user_id: str, user_name: st
             return
         
         # Separate income and expense
-        income_txs = [tx for tx in summary.transactions if tx.category and tx.category.type.value == "income"]
-        expense_txs = [tx for tx in summary.transactions if not tx.category or tx.category.type.value != "income"]
+        income_txs = [tx for tx in summary.transactions if tx.category and tx.category.type.value == "INCOME"]
+        expense_txs = [tx for tx in summary.transactions if not tx.category or tx.category.type.value != "INCOME"]
         
         lines = [f"📅 Hôm nay ({format_date(datetime.now())})\n"]
         
