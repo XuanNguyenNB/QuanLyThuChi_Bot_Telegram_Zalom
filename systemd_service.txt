@@ -1,0 +1,24 @@
+# Systemd service file for Expense Bot
+# Save as: /etc/systemd/system/expense-bot.service
+
+[Unit]
+Description=Telegram & Zalo Expense Bot
+After=network.target
+
+[Service]
+Type=simple
+User=botuser
+Group=botuser
+WorkingDirectory=/home/botuser/QuanLyThuChi_Bot_Telegram_Zalom
+Environment=PATH=/home/botuser/QuanLyThuChi_Bot_Telegram_Zalom/venv/bin
+ExecStart=/home/botuser/QuanLyThuChi_Bot_Telegram_Zalom/venv/bin/python run.py
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=expense-bot
+
+[Install]
+WantedBy=multi-user.target
