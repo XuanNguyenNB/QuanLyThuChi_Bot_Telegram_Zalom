@@ -19,16 +19,6 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
-# Set console encoding for Windows
-if sys.platform == 'win32':
-    try:
-        import codecs
-        if hasattr(sys.stdout, 'detach'):
-            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
-            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
-    except (AttributeError, OSError):
-        # Windows console doesn't support detach, use default encoding
-        pass
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -258,19 +248,31 @@ def is_question(text: str) -> bool:
     """Check if text is a question rather than a transaction"""
     text_lower = text.lower().strip()
     
-    # Question patterns
+    # Question patterns - expanded list
     question_words = [
+        # Câu hỏi cơ bản
         'bao nhiêu', 'mấy', 'sao', 'tại sao', 'như thế nào', 'thế nào',
         'ở đâu', 'khi nào', 'ai', 'gì', 'cái gì', 'là gì',
         'có thể', 'làm sao', 'giúp', 'hỏi', 'cho hỏi',
-        'tháng này', 'hôm nay', 'tuần này', 'chi tiêu',
-        'tổng', 'trung bình', 'nhiều nhất', 'ít nhất'
+        # Thời gian
+        'tháng này', 'hôm nay', 'tuần này', 'năm nay', 'tháng trước', 'tuần trước',
+        'từ đầu', 'từ trước', 'tới giờ', 'đến giờ', 'hôm qua'
+        # Thống kê
+        'tổng', 'trung bình', 'nhiều nhất', 'ít nhất', 'chi tiêu', 'đã tiêu',
+        'hết bao', 'tốn bao', 'tiêu bao', 'xài bao',
+        # Tìm kiếm
+        'tìm', 'xem', 'liệt kê', 'show', 'thống kê', 'báo cáo',
+        # So sánh
+        'so sánh', 'so với', 'hơn', 'kém',
+        # Danh mục phổ biến (để bắt câu như "ăn uống tháng này")
+        'ăn uống', 'cafe', 'cà phê', 'đi lại', 'mua sắm', 'giải trí'
     ]
     
-    # Check if starts with question word or contains question mark
+    # Check if ends with question mark
     if text.endswith('?'):
         return True
     
+    # Check for question words
     for word in question_words:
         if word in text_lower:
             return True
@@ -282,9 +284,12 @@ def is_question(text: str) -> bool:
 class QueryIntent:
     """Parsed query intent from natural language"""
     is_query: bool = False
-    time_range: str = "all"  # today, week, month, year, all
+    time_range: str = "all"  # today, yesterday, week, month, year, all, specific_date, weekday_last_week
     category: Optional[str] = None
     keyword: Optional[str] = None
+    # For specific date queries
+    specific_date: Optional[str] = None  # Format: "dd/mm" or "dd/mm/yyyy"
+    weekday: Optional[str] = None  # "thứ hai", "thứ ba", etc.
 
 
 async def parse_query_intent(text: str) -> QueryIntent:
@@ -300,17 +305,24 @@ Câu hỏi: "{text}"
 Trả về JSON với format:
 {{
     "is_query": true/false,  // true nếu đây là câu hỏi về thống kê/tổng tiền
-    "time_range": "today" | "week" | "month" | "year" | "all",
+    "time_range": "today" | "yesterday" | "week" | "month" | "year" | "all" | "specific_date" | "weekday_last_week",
     "category": "tên danh mục nếu có" | null,
-    "keyword": "từ khóa tìm trong ghi chú" | null
+    "keyword": "từ khóa tìm trong ghi chú" | null,
+    "specific_date": "dd/mm" hoặc "dd/mm/yyyy" nếu hỏi về ngày cụ thể | null,
+    "weekday": "thứ hai/thứ ba/.../chủ nhật" nếu hỏi về thứ tuần trước | null
 }}
 
+Quy tắc:
+- "hôm qua" → time_range="yesterday"
+- "ngày 25/12" hoặc "25/12" → time_range="specific_date", specific_date="25/12"
+- "thứ hai tuần trước" → time_range="weekday_last_week", weekday="thứ hai"
+- "t3 tuần trước" → time_range="weekday_last_week", weekday="thứ ba"
+
 Ví dụ:
-- "tháng này cho người yêu bao nhiêu" → {{"is_query": true, "time_range": "month", "category": "Người thân", "keyword": "người yêu"}}
-- "tuần này cafe bao nhiêu" → {{"is_query": true, "time_range": "week", "category": "Ăn uống", "keyword": "cafe"}}
-- "năm nay chi bao nhiêu" → {{"is_query": true, "time_range": "year", "category": null, "keyword": null}}
-- "từ đầu tới giờ cho bố mẹ bao nhiêu" → {{"is_query": true, "time_range": "all", "category": "Người thân", "keyword": "bố mẹ"}}
-- "hôm nay tiêu gì vậy" → {{"is_query": true, "time_range": "today", "category": null, "keyword": null}}
+- "hôm qua ăn uống hết bao nhiêu" → {{"is_query": true, "time_range": "yesterday", "category": "Ăn uống", "keyword": null, "specific_date": null, "weekday": null}}
+- "ngày 20/12 tiêu gì" → {{"is_query": true, "time_range": "specific_date", "category": null, "keyword": null, "specific_date": "20/12", "weekday": null}}
+- "thứ 5 tuần trước chi bao nhiêu" → {{"is_query": true, "time_range": "weekday_last_week", "category": null, "keyword": null, "specific_date": null, "weekday": "thứ năm"}}
+- "tháng này cafe bao nhiêu" → {{"is_query": true, "time_range": "month", "category": "Ăn uống", "keyword": "cafe", "specific_date": null, "weekday": null}}
 
 Danh mục có sẵn: {', '.join(CATEGORIES)}
 
@@ -322,7 +334,7 @@ CHỈ trả về JSON, không giải thích."""
                 prompt,
                 generation_config=genai.types.GenerationConfig(
                     temperature=0.1,
-                    max_output_tokens=200,
+                    max_output_tokens=300,
                 )
             )
         
@@ -341,7 +353,9 @@ CHỈ trả về JSON, không giải thích."""
             is_query=data.get("is_query", False),
             time_range=data.get("time_range", "all"),
             category=data.get("category"),
-            keyword=data.get("keyword")
+            keyword=data.get("keyword"),
+            specific_date=data.get("specific_date"),
+            weekday=data.get("weekday")
         )
         
     except Exception as e:

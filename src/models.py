@@ -37,6 +37,7 @@ class User(Base):
 
     # Relationships
     transactions: Mapped[List["Transaction"]] = relationship(back_populates="user", lazy="selectin")
+    budgets: Mapped[List["Budget"]] = relationship(back_populates="user", lazy="selectin")
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, telegram={self.telegram_id}, zalo={self.zalo_id})>"
@@ -101,6 +102,25 @@ class UserKeyword(Base):
 
     def __repr__(self) -> str:
         return f"<UserKeyword(user={self.user_id}, keyword={self.keyword}, category={self.category_id})>"
+
+
+class Budget(Base):
+    """
+    Budget for a category or total (category_id=None)
+    """
+    __tablename__ = "budgets"
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False)
+    category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("categories.id"), nullable=True)  # Null = Total budget
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    
+    # Relationships
+    user: Mapped["User"] = relationship(back_populates="budgets")
+    category: Mapped[Optional["Category"]] = relationship(lazy="selectin")
+    
+    def __repr__(self) -> str:
+        return f"<Budget(user={self.user_id}, category={self.category_id}, amount={self.amount})>"
 
 
 # Database engine and session factory

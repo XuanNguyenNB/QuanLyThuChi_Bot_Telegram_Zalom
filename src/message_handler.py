@@ -19,16 +19,6 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
-# Set console encoding for Windows
-if sys.platform == 'win32':
-    try:
-        import codecs
-        if hasattr(sys.stdout, 'detach'):
-            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
-            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
-    except (AttributeError, OSError):
-        # Windows console doesn't support detach, use default encoding
-        pass
 
 from .models import get_session, Category
 from .services import (
@@ -139,17 +129,27 @@ async def _handle_question(session, db_user_id: int, text: str) -> str:
             db_user_id,
             time_range=query_intent.time_range,
             category_name=query_intent.category,
-            keyword=query_intent.keyword
+            keyword=query_intent.keyword,
+            specific_date=query_intent.specific_date,
+            weekday=query_intent.weekday
         )
         
+        # Build time label
         time_labels = {
             "today": "hôm nay",
+            "yesterday": "hôm qua",
             "week": "tuần này",
             "month": "tháng này",
             "year": "năm nay",
             "all": "từ đầu tới giờ"
         }
-        time_label = time_labels.get(result.time_range, result.time_range)
+        
+        if query_intent.time_range == "specific_date" and query_intent.specific_date:
+            time_label = f"ngày {query_intent.specific_date}"
+        elif query_intent.time_range == "weekday_last_week" and query_intent.weekday:
+            time_label = f"{query_intent.weekday} tuần trước"
+        else:
+            time_label = time_labels.get(result.time_range, result.time_range)
         
         if result.count == 0:
             filter_desc = ""

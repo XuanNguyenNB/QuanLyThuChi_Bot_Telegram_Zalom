@@ -10,7 +10,7 @@ from typing import Optional, List, Tuple
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import User, Category, Transaction, TransactionType
+from .models import User, Category, Transaction, TransactionType, Budget
 from .utils import get_today_start, get_today_end, get_month_start, get_month_end, get_week_start, get_year_start
 
 
@@ -777,59 +777,73 @@ async def smart_query_transactions(
     user_id: int,
     time_range: str = "all",
     category_name: Optional[str] = None,
-    keyword: Optional[str] = None
+    keyword: Optional[str] = None,
+    specific_date: Optional[str] = None,
+    weekday: Optional[str] = None
 ) -> SmartQueryResult:
     """
     Smart query transactions with filters.
     
     Args:
-        time_range: "today", "week", "month", "year", "all"
+        time_range: "today", "yesterday", "week", "month", "year", "all", "specific_date", "weekday_last_week"
         category_name: Filter by category name (partial match)
         keyword: Filter by note keyword (partial match)
+        specific_date: "dd/mm" or "dd/mm/yyyy" for specific date queries
+        weekday: "thứ hai", "thứ ba", etc. for weekday of last week queries
     """
+    from .utils import (
+        get_today_start, get_week_start, get_month_start, get_year_start,
+        get_yesterday_start, get_yesterday_end, get_specific_date_range,
+        get_weekday_of_last_week, parse_weekday_vietnamese
+    )
+    
     # Build date filter
-    now = datetime.now()
     start_date = None
+    end_date = None
     
     if time_range == "today":
         start_date = get_today_start()
+    elif time_range == "yesterday":
+        start_date = get_yesterday_start()
+        end_date = get_yesterday_end()
     elif time_range == "week":
         start_date = get_week_start()
     elif time_range == "month":
         start_date = get_month_start()
     elif time_range == "year":
         start_date = get_year_start()
-    # "all" means no date filter
+    elif time_range == "specific_date" and specific_date:
+        # Parse specific_date: "dd/mm" or "dd/mm/yyyy"
+        parts = specific_date.split("/")
+        if len(parts) >= 2:
+            day = int(parts[0])
+            month = int(parts[1])
+            year = int(parts[2]) if len(parts) > 2 else None
+            start_date, end_date = get_specific_date_range(day, month, year)
+    elif time_range == "weekday_last_week" and weekday:
+        # Parse weekday
+        weekday_num = parse_weekday_vietnamese(weekday)
+        if weekday_num is not None:
+            start_date, end_date = get_weekday_of_last_week(weekday_num)
     
-    # Build query
-    query = (
-        select(Transaction)
-        .where(Transaction.user_id == user_id)
-    )
+    # Base query
+    query = select(Transaction).where(Transaction.user_id == user_id)
     
     if start_date:
         query = query.where(Transaction.date >= start_date)
+    if end_date:
+        query = query.where(Transaction.date <= end_date)
     
-    # Join with category if needed
     if category_name:
-        query = query.join(Category).where(
-            func.lower(Category.name).contains(category_name.lower())
-        )
+        # Join with Category
+        query = query.join(Transaction.category).where(Category.name.ilike(f"%{category_name}%"))
+        
+    if keyword:
+        query = query.where(Transaction.note.ilike(f"%{keyword}%"))
     
-    query = query.order_by(Transaction.date.desc())
-    
-    result = await session.execute(query)
+    result = await session.execute(query.order_by(Transaction.date.desc()))
     transactions = list(result.scalars().all())
     
-    # Filter by keyword in note if specified
-    if keyword:
-        keyword_lower = keyword.lower()
-        transactions = [
-            tx for tx in transactions 
-            if tx.note and keyword_lower in tx.note.lower()
-        ]
-    
-    # Calculate total
     total = sum(tx.amount for tx in transactions)
     
     return SmartQueryResult(
@@ -839,4 +853,119 @@ async def smart_query_transactions(
         time_range=time_range,
         keyword=keyword,
         category_name=category_name
+    )
+
+
+async def set_budget(
+    session: AsyncSession,
+    user_id: int,
+    amount: float,
+    category_id: Optional[int] = None
+) -> Budget:
+    """Set budget for a category or total (category_id=None)"""
+    # Check if exists
+    query = select(Budget).where(Budget.user_id == user_id)
+    if category_id:
+        query = query.where(Budget.category_id == category_id)
+    else:
+        query = query.where(Budget.category_id.is_(None))
+        
+    result = await session.execute(query)
+    budget = result.scalar_one_or_none()
+    
+    if budget:
+        budget.amount = amount
+    else:
+        budget = Budget(user_id=user_id, amount=amount, category_id=category_id)
+        session.add(budget)
+        
+    await session.commit()
+    await session.refresh(budget)
+    return budget
+
+
+async def get_user_budgets(
+    session: AsyncSession,
+    user_id: int
+) -> List[Budget]:
+    """Get all budgets for user"""
+    result = await session.execute(
+        select(Budget).where(Budget.user_id == user_id).order_by(Budget.category_id)
+    )
+    return list(result.scalars().all())
+
+
+@dataclass
+class BudgetStatus:
+    budget: Budget
+    spent: float
+    remaining: float
+    percentage: float
+    is_exceeded: bool
+    category_name: str
+
+
+async def check_budget_status(
+    session: AsyncSession,
+    user_id: int,
+    category_id: Optional[int] = None,
+    added_amount: float = 0
+) -> Optional[BudgetStatus]:
+    """
+    Check status of a budget (total or specific category).
+    Returns BudgetStatus if budget exists, else None.
+    """
+    # Get budget
+    query = select(Budget).where(Budget.user_id == user_id)
+    if category_id:
+        query = query.where(Budget.category_id == category_id)
+    else:
+        query = query.where(Budget.category_id.is_(None))
+        
+    result = await session.execute(query)
+    budget = result.scalar_one_or_none()
+    
+    if not budget:
+        return None
+        
+    # Calculate spending this month
+    month_start = get_month_start()
+    
+    spend_query = select(func.sum(Transaction.amount)).where(
+        Transaction.user_id == user_id,
+        Transaction.date >= month_start
+    )
+    
+    if category_id:
+        spend_query = spend_query.where(Transaction.category_id == category_id)
+    else:
+        # For total budget, convert None result to 0
+        pass
+        
+    result = await session.execute(spend_query)
+    spent = result.scalar() or 0.0
+    
+    # Add the amount currently being added (to see if this tx breaks the budget)
+    spent += added_amount
+    
+    remaining = budget.amount - spent
+    percentage = (spent / budget.amount * 100) if budget.amount > 0 else 0
+    is_exceeded = spent > budget.amount
+    
+    cat_name = "Tổng"
+    if budget.category:
+        cat_name = budget.category.name
+    elif category_id:
+        # If budget object doesn't have loaded category relation yet
+        cat_res = await session.execute(select(Category).where(Category.id == category_id))
+        c = cat_res.scalar_one_or_none()
+        if c: cat_name = c.name
+            
+    return BudgetStatus(
+        budget=budget,
+        spent=spent,
+        remaining=remaining,
+        percentage=percentage,
+        is_exceeded=is_exceeded,
+        category_name=cat_name
     )

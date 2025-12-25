@@ -38,11 +38,15 @@ from .services import (
     delete_transaction,
     get_spending_insights,
     smart_query_transactions,
-    link_user_by_phone
+    link_user_by_phone,
+    set_budget,
+    get_user_budgets,
+    check_budget_status
 )
 from .utils import format_currency, format_currency_full, format_date, format_datetime
 from .ai_service import is_ai_enabled, transcribe_voice, parse_with_ai, get_category_name_from_ai, generate_transaction_comment
 from .message_handler import process_text_message
+from .charts import generate_pie_chart, generate_bar_chart
 
 # Configure logging with file output for debugging
 import sys
@@ -56,16 +60,6 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
-# Set console encoding for Windows
-if sys.platform == 'win32':
-    try:
-        import codecs
-        if hasattr(sys.stdout, 'detach'):
-            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
-            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
-    except (AttributeError, OSError):
-        # Windows console doesn't support detach, use default encoding
-        pass
 logger = logging.getLogger(__name__)
 
 # Load environment variables
@@ -227,6 +221,13 @@ async def month_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         
         await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
         
+        # Send Pie Chart if there are expenses
+        if summary.total_expense > 0 and summary.category_breakdown:
+            chart_data = [(cat.category_name, cat.total) for cat in summary.category_breakdown]
+            chart_buf = generate_pie_chart(chart_data, f"Chi tiêu tháng {now.month}/{now.year}")
+            if chart_buf:
+                 await update.message.reply_photo(photo=chart_buf)
+        
     except Exception as e:
         logger.error(f"Error in month_command: {e}")
         await update.message.reply_text("❌ Có lỗi xảy ra. Vui lòng thử lại sau.")
@@ -269,6 +270,15 @@ async def insights_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         lines.append(f"💬 *Gợi ý:* {insights.suggestion}")
         
         await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        
+        # Comparison Chart (This Month vs Last Month)
+        chart_data = [
+            ("Tháng trước", insights.total_last_month),
+            ("Tháng này", insights.total_this_month)
+        ]
+        chart_buf = generate_bar_chart(chart_data, "So sánh chi tiêu", y_label="VNĐ")
+        if chart_buf:
+            await update.message.reply_photo(photo=chart_buf)
         
     except Exception as e:
         logger.error(f"Error in insights_command: {e}")
@@ -462,6 +472,96 @@ async def edit_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text("❌ Có lỗi xảy ra. Vui lòng thử lại.")
 
 
+async def budget_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /budget command - set or view budgets"""
+    user = update.effective_user
+    args = context.args
+    
+    try:
+        async with await get_session() as session:
+            db_user = await get_or_create_user(session, user.id, user.username, user.full_name)
+            
+            # Case 1: View budgets (no args)
+            if not args:
+                budgets = await get_user_budgets(session, db_user.id)
+                status = await check_budget_status(session, db_user.id)
+                
+                if not budgets:
+                    await update.message.reply_text(
+                        "📭 Bạn chưa thiết lập ngân sách.\n\n"
+                        "Gõ: `/budget set 10tr` để đặt ngân sách tổng.\n"
+                        "Gõ: `/budget set 2tr ăn uống` để đặt ngân sách danh mục.",
+                        parse_mode="Markdown"
+                    )
+                    return
+                
+                lines = ["📊 *Tình hình ngân sách tháng này*"]
+                
+                # Total budget status
+                if status:
+                     icon = "🟢" if not status.is_exceeded else "🔴"
+                     lines.append(f"\n{icon} *Tổng chi:* {format_currency_full(status.spent)} / {format_currency_full(status.budget.amount)}")
+                     lines.append(f"   (Đã dùng: {status.percentage:.0f}%)")
+                
+                lines.append("\n*Chi tiết:*")
+                for b in budgets:
+                    if b.category_id is None: continue # Skip total (shown above)
+                    
+                    cat_status = await check_budget_status(session, db_user.id, category_id=b.category_id)
+                    icon = "✅" if not cat_status.is_exceeded else "⚠️"
+                    lines.append(f"{icon} {cat_status.category_name}: {format_currency_full(cat_status.spent)} / {format_currency_full(b.amount)} ({cat_status.percentage:.0f}%)")
+                    
+                await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+                return
+            
+            # Case 2: Set budget
+            if args[0].lower() == "set":
+                # /budget set 500k [category]
+                if len(args) < 2:
+                    await update.message.reply_text("❌ Thiếu số tiền. VD: `/budget set 5tr`")
+                    return
+                    
+                # Parse amount using parse_message service logic (simplified)
+                amount_str = args[1]
+                # Reuse parse_message logic or simple parsing
+                # Since parse_message expects "50k cafe", we can use it
+                parse_res = parse_message(f"{amount_str} budget")
+                if not parse_res.is_valid:
+                     await update.message.reply_text("❌ Số tiền không hợp lệ.")
+                     return
+                
+                amount = parse_res.amount
+                
+                # Category?
+                category_id = None
+                cat_name = "Tổng"
+                
+                if len(args) > 2:
+                    note = " ".join(args[2:])
+                    # Find category
+                    category = await detect_category(session, note) # Reuse detect logic
+                    if not category:
+                         # Try finding by name explicitly
+                         category = await get_category_by_name(session, note)
+                    
+                    if category:
+                        category_id = category.id
+                        cat_name = category.name
+                    else:
+                        await update.message.reply_text(f"❌ Không tìm thấy danh mục '{note}'")
+                        return
+                
+                await set_budget(session, db_user.id, amount, category_id)
+                await update.message.reply_text(
+                    f"✅ Đã đặt ngân sách *{cat_name}*: {format_currency_full(amount)}/tháng",
+                    parse_mode="Markdown"
+                )
+                        
+    except Exception as e:
+        logger.error(f"Error in budget_command: {e}")
+        await update.message.reply_text("❌ Có lỗi xảy ra.")
+
+
 def build_category_keyboard_for_edit(tx_id: int, note: str, categories: list) -> InlineKeyboardMarkup:
     """Build inline keyboard for edit command - uses 'edit:' prefix"""
     keyboard = []
@@ -591,6 +691,12 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
                 f"🤔 Chưa xác định danh mục. Chọn một danh mục:\n"
                 f"_(Bot sẽ học để lần sau tự nhận diện)_"
             )
+            
+            # Check total budget
+            budget_status = await check_budget_status(session, db_user.id)
+            if budget_status and budget_status.is_exceeded:
+                response += f"\n\n⚠️ *CẢNH BÁO:* Bạn đã vượt ngân sách tháng ({format_currency_full(budget_status.budget.amount)})!"
+                
             await update.message.reply_text(
                 response,
                 parse_mode="Markdown",
@@ -599,13 +705,88 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             return
         
         # Send regular response with Markdown formatting
-        await update.message.reply_text(result.response, parse_mode="Markdown")
+        response_text = result.response
+        
+        # Check budget alert if this was a transaction
+        if result.transaction_result and result.transaction_result.success:
+            # Check category budget
+            cat_id = result.transaction_result.category_id
+            if cat_id:
+                cat_status = await check_budget_status(session, db_user.id, category_id=cat_id)
+                if cat_status and cat_status.is_exceeded:
+                    response_text += f"\n\n⚠️ *CẢNH BÁO:* Vượt ngân sách {cat_status.category_name} ({cat_status.percentage:.0f}%)"
+            
+            # Check total budget
+            status = await check_budget_status(session, db_user.id)
+            if status and status.is_exceeded:
+                response_text += f"\n\n⚠️ *CẢNH BÁO:* Vượt tổng ngân sách tháng ({status.percentage:.0f}%)"
+                
+        await update.message.reply_text(response_text, parse_mode="Markdown")
         
     except Exception as e:
         logger.error(f"Error handling text message: {e}")
         await update.message.reply_text(
             "❌ Có lỗi xảy ra. Vui lòng thử lại."
         )
+
+
+async def export_excel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /export_excel command - export transactions to Excel"""
+    user = update.effective_user
+    
+    try:
+        async with await get_session() as session:
+            db_user = await get_or_create_user(session, user.id, user.username, user.full_name)
+            transactions = await get_all_transactions(session, db_user.id)
+        
+        if not transactions:
+            await update.message.reply_text("📭 Chưa có giao dịch nào để xuất.")
+            return
+            
+        # Create Excel file
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Chi tiêu"
+        
+        # Headers
+        headers = ["Ngày", "Giờ", "Số tiền", "Danh mục", "Ghi chú", "Loại", "Nội dung gốc"]
+        ws.append(headers)
+        
+        # Style headers
+        from openpyxl.styles import Font
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+            
+        # Data
+        for tx in transactions:
+            cat_name = tx.category.name if tx.category else "Khác"
+            tx_type = "Thu" if (tx.category and tx.category.type.value == "INCOME") else "Chi"
+            
+            ws.append([
+                tx.date.strftime("%Y-%m-%d"),
+                tx.date.strftime("%H:%M"),
+                tx.amount,
+                cat_name,
+                tx.note or "",
+                tx_type,
+                tx.raw_text or ""
+            ])
+            
+        # Save to buffer
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        output.name = f"chi_tieu_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        
+        await update.message.reply_document(
+            document=output,
+            caption=f"📄 File Excel chi tiêu ({len(transactions)} giao dịch)"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in export_excel_command: {e}")
+        await update.message.reply_text("❌ Có lỗi xảy ra khi xuất Excel.")
 
 
 async def handle_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -984,7 +1165,9 @@ def main() -> None:
             BotCommand("edit", "✏️ Sửa giao dịch gần nhất"),
             BotCommand("delete", "🗑️ Xóa giao dịch gần nhất"),
             BotCommand("link", "🔗 Liên kết với Zalo"),
+            BotCommand("budget", "💰 Quản lý ngân sách"),
             BotCommand("export", "📄 Xuất file CSV"),
+            BotCommand("excel", "📊 Xuất file Excel"),
             BotCommand("help", "❓ Hướng dẫn"),
         ]
         await app.bot.set_my_commands(commands)
@@ -998,6 +1181,8 @@ def main() -> None:
     application.add_handler(CommandHandler("today", today_command))
     application.add_handler(CommandHandler("month", month_command))
     application.add_handler(CommandHandler("export", export_command))
+    application.add_handler(CommandHandler("excel", export_excel_command))
+    application.add_handler(CommandHandler("budget", budget_command))
     application.add_handler(CommandHandler("edit", edit_command))
     application.add_handler(CommandHandler("delete", delete_command))
     application.add_handler(CommandHandler("insights", insights_command))
