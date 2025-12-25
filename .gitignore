@@ -1,0 +1,30 @@
+# Environment
+.env
+*.env
+
+# Database
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Charts output
+*.png
+
+# Distribution
+dist/
+build/
+*.egg-info/

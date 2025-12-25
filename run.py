@@ -1,0 +1,66 @@
+"""
+Entry point to run both Telegram and Zalo bots.
+Usage:
+    python run.py          # Run both bots
+    python run.py telegram # Run only Telegram bot
+    python run.py zalo     # Run only Zalo bot
+"""
+
+import asyncio
+import sys
+import signal
+from concurrent.futures import ThreadPoolExecutor
+
+from src.bot import main as telegram_main
+from src.zalo_bot import main as zalo_main
+
+
+def run_telegram():
+    """Run Telegram bot in its own thread"""
+    try:
+        telegram_main()
+    except Exception as e:
+        print(f"❌ Telegram bot error: {e}")
+
+
+async def run_both():
+    """Run both bots concurrently"""
+    print("🚀 Khởi động cả 2 bot...")
+    print("   📱 Telegram Bot")
+    print("   💬 Zalo Bot")
+    print("─" * 30)
+    
+    # Run Telegram in thread (it uses run_polling which blocks)
+    executor = ThreadPoolExecutor(max_workers=1)
+    loop = asyncio.get_event_loop()
+    
+    # Start Telegram in background thread
+    telegram_future = loop.run_in_executor(executor, run_telegram)
+    
+    # Run Zalo bot in main async loop
+    try:
+        await zalo_main()
+    except Exception as e:
+        print(f"❌ Zalo bot error: {e}")
+    
+    # Wait for Telegram
+    await telegram_future
+
+
+def main():
+    """Main entry point"""
+    mode = sys.argv[1].lower() if len(sys.argv) > 1 else "both"
+    
+    if mode == "telegram":
+        print("🚀 Khởi động Telegram Bot...")
+        telegram_main()
+    elif mode == "zalo":
+        print("🚀 Khởi động Zalo Bot...")
+        asyncio.run(zalo_main())
+    else:
+        # Run both
+        asyncio.run(run_both())
+
+
+if __name__ == "__main__":
+    main()
