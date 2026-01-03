@@ -459,7 +459,8 @@ async def edit_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             callback_data = f"eday:{target_date.strftime('%Y-%m-%d')}"
             keyboard.append([InlineKeyboardButton(label, callback_data=callback_data)])
         
-        # Add cancel button
+        # Add "Enter specific date" and cancel buttons
+        keyboard.append([InlineKeyboardButton("📆 Nhập ngày khác...", callback_data="eday:custom")])
         keyboard.append([InlineKeyboardButton("❌ Hủy", callback_data="eday:cancel")])
         
         await update.message.reply_text(
@@ -657,6 +658,19 @@ async def handle_edit_day_callback(update: Update, context: ContextTypes.DEFAULT
     
     if date_str == "cancel":
         await query.edit_message_text("❌ Đã hủy thao tác sửa.")
+        return
+    
+    if date_str == "custom":
+        # Ask user to enter a specific date
+        context.user_data['edit_date_mode'] = True
+        keyboard = [[InlineKeyboardButton("❌ Hủy", callback_data="eday:cancel")]]
+        await query.edit_message_text(
+            "📆 *Nhập ngày cần xem giao dịch:*\n\n"
+            "Gõ theo format: `dd/mm/yyyy`\n"
+            "Ví dụ: `27/12/2025`",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         return
     
     try:
@@ -994,6 +1008,80 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         return  # Ignore very short messages
     
     try:
+        # Check if user is in edit date mode (entering a specific date)
+        edit_date_mode = context.user_data.get('edit_date_mode')
+        if edit_date_mode:
+            context.user_data.pop('edit_date_mode', None)
+            
+            # Try to parse the date
+            try:
+                # Support formats: dd/mm/yyyy, dd/mm, dd-mm-yyyy, dd-mm
+                text_clean = text.replace("-", "/")
+                parts = text_clean.split("/")
+                
+                if len(parts) >= 2:
+                    day = int(parts[0])
+                    month = int(parts[1])
+                    year = int(parts[2]) if len(parts) >= 3 else datetime.now().year
+                    
+                    target_date = date(year, month, day)
+                    
+                    async with await get_session() as session:
+                        db_user = await get_or_create_user(session, user.id, user.username, user.full_name)
+                        transactions = await get_transactions_by_date(session, db_user.id, target_date)
+                    
+                    if not transactions:
+                        await update.message.reply_text(
+                            f"📭 Ngày {target_date.strftime('%d/%m/%Y')} không có giao dịch nào."
+                        )
+                        return
+                    
+                    # Build transaction list with numbered buttons
+                    lines = [f"📅 *Giao dịch ngày {target_date.strftime('%d/%m/%Y')}*\n"]
+                    keyboard = []
+                    
+                    for i, tx in enumerate(transactions, 1):
+                        tx_type = "💰" if (tx.category and tx.category.type.value == "INCOME") else "💸"
+                        cat_name = tx.category.name if tx.category else "Khác"
+                        note = tx.note or "Không có ghi chú"
+                        time_str = tx.date.strftime("%H:%M")
+                        
+                        lines.append(f"{i}. {tx_type} {format_currency(tx.amount)} - {note[:20]}{'...' if len(note) > 20 else ''}")
+                        lines.append(f"   ⏰ {time_str} | 🏷️ {cat_name}")
+                        
+                        btn_label = f"{i}. {tx_type} {format_currency(tx.amount)}"
+                        callback_data = f"etx:{tx.id}"
+                        keyboard.append([InlineKeyboardButton(btn_label, callback_data=callback_data)])
+                    
+                    keyboard.append([
+                        InlineKeyboardButton("« Chọn ngày khác", callback_data="etx:back"),
+                        InlineKeyboardButton("❌ Hủy", callback_data="etx:cancel")
+                    ])
+                    
+                    lines.append("\n_Chọn giao dịch cần sửa:_")
+                    
+                    await update.message.reply_text(
+                        "\n".join(lines),
+                        parse_mode="Markdown",
+                        reply_markup=InlineKeyboardMarkup(keyboard)
+                    )
+                    return
+                else:
+                    await update.message.reply_text(
+                        "❌ Định dạng ngày không đúng. Vui lòng nhập theo format: `dd/mm/yyyy`\n"
+                        "Ví dụ: `27/12/2025`",
+                        parse_mode="Markdown"
+                    )
+                    return
+                    
+            except ValueError as e:
+                await update.message.reply_text(
+                    f"❌ Ngày không hợp lệ. Vui lòng nhập theo format: `dd/mm/yyyy`\n"
+                    f"Ví dụ: `27/12/2025`",
+                    parse_mode="Markdown"
+                )
+                return
+        
         # Check if user is in edit mode (editing amount or note)
         edit_mode = context.user_data.get('edit_mode')
         if edit_mode:
