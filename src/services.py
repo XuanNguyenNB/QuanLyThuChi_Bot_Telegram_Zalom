@@ -969,3 +969,109 @@ async def check_budget_status(
         is_exceeded=is_exceeded,
         category_name=cat_name
     )
+
+
+async def get_transactions_by_date(
+    session: AsyncSession,
+    user_id: int,
+    target_date: date
+) -> List[Transaction]:
+    """
+    Get all transactions for a specific date.
+    
+    Args:
+        session: Database session
+        user_id: User ID (database ID, not telegram_id)
+        target_date: The date to query transactions for
+        
+    Returns:
+        List of transactions for that date, ordered by time
+    """
+    start = datetime(target_date.year, target_date.month, target_date.day, 0, 0, 0)
+    end = datetime(target_date.year, target_date.month, target_date.day, 23, 59, 59)
+    
+    result = await session.execute(
+        select(Transaction)
+        .where(Transaction.user_id == user_id)
+        .where(Transaction.date >= start)
+        .where(Transaction.date <= end)
+        .order_by(Transaction.date.asc())
+    )
+    return list(result.scalars().all())
+
+
+async def update_transaction(
+    session: AsyncSession,
+    transaction_id: int,
+    user_id: int,
+    amount: Optional[float] = None,
+    note: Optional[str] = None,
+    category_id: Optional[int] = None,
+    is_income: Optional[bool] = None
+) -> Optional[Transaction]:
+    """
+    Update a transaction's details.
+    
+    Args:
+        session: Database session
+        transaction_id: Transaction ID to update
+        user_id: User ID for ownership verification
+        amount: New amount (optional)
+        note: New note (optional)
+        category_id: New category ID (optional)
+        is_income: If True, change to income category; if False, change to expense category (optional)
+        
+    Returns:
+        Updated transaction or None if not found
+    """
+    result = await session.execute(
+        select(Transaction).where(
+            Transaction.id == transaction_id,
+            Transaction.user_id == user_id
+        )
+    )
+    tx = result.scalar_one_or_none()
+    
+    if tx is None:
+        return None
+    
+    if amount is not None:
+        tx.amount = amount
+    
+    if note is not None:
+        tx.note = note
+        
+    if category_id is not None:
+        tx.category_id = category_id
+        
+    # If changing transaction type (income/expense), we need to find appropriate category
+    if is_income is not None:
+        target_type = TransactionType.INCOME if is_income else TransactionType.EXPENSE
+        
+        # If current category type doesn't match, find a default category
+        if tx.category is None or tx.category.type != target_type:
+            cat_result = await session.execute(
+                select(Category).where(Category.type == target_type).limit(1)
+            )
+            new_cat = cat_result.scalar_one_or_none()
+            if new_cat:
+                tx.category_id = new_cat.id
+    
+    await session.commit()
+    await session.refresh(tx)
+    return tx
+
+
+async def get_transaction_by_id(
+    session: AsyncSession,
+    transaction_id: int,
+    user_id: int
+) -> Optional[Transaction]:
+    """Get a specific transaction by ID, verifying ownership."""
+    result = await session.execute(
+        select(Transaction).where(
+            Transaction.id == transaction_id,
+            Transaction.user_id == user_id
+        )
+    )
+    return result.scalar_one_or_none()
