@@ -41,3 +41,5 @@ from .voice_handlers import (
 from .callback_handlers import handle_category_callback
 
 from .text_handler import handle_text_message
+
+from .sheet_handlers import sheet_command, sync_command

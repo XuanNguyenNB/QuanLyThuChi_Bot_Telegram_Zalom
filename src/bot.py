@@ -55,6 +55,9 @@ from .handlers import (
     handle_category_callback,
     # Text handler
     handle_text_message,
+    # Sheet handlers
+    sheet_command,
+    sync_command,
 )
 
 
@@ -107,6 +110,8 @@ def main() -> None:
             BotCommand("edit", "✏️ Sửa giao dịch"),
             BotCommand("delete", "🗑️ Xóa giao dịch gần nhất"),
             BotCommand("ghilai", "📅 Ghi lại giao dịch"),
+            BotCommand("sheet", "📊 Google Sheets"),
+            BotCommand("sync", "🔄 Đồng bộ Sheets"),
             BotCommand("link", "🔗 Liên kết với Zalo"),
             BotCommand("budget", "💰 Quản lý ngân sách"),
             BotCommand("export", "📄 Xuất file CSV"),
@@ -115,6 +120,11 @@ def main() -> None:
         ]
         await app.bot.set_my_commands(commands)
         logger.info("Database initialized and bot menu set")
+        
+        # Start sync scheduler in background
+        from .sync_scheduler import start_sync_scheduler
+        import asyncio
+        asyncio.create_task(start_sync_scheduler())
     
     application.post_init = post_init
     
@@ -131,6 +141,8 @@ def main() -> None:
     application.add_handler(CommandHandler("insights", insights_command))
     application.add_handler(CommandHandler("link", link_command))
     application.add_handler(CommandHandler("ghilai", ghilai_command))
+    application.add_handler(CommandHandler("sheet", sheet_command))
+    application.add_handler(CommandHandler("sync", sync_command))
     
     # ========== ADD CALLBACK HANDLERS ==========
     # Category selection callbacks

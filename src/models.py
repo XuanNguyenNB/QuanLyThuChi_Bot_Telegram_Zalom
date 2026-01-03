@@ -34,6 +34,9 @@ class User(Base):
     username: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    # Google Sheets integration
+    sheet_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    last_sync: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Relationships
     transactions: Mapped[List["Transaction"]] = relationship(back_populates="user", lazy="selectin")
