@@ -432,6 +432,101 @@ async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text("❌ Có lỗi xảy ra. Vui lòng thử lại.")
 
 
+async def ghilai_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /ghilai command - record transaction for a past date"""
+    user = update.effective_user
+    
+    try:
+        # Build keyboard with last 7 days
+        keyboard = []
+        today = datetime.now().date()
+        
+        # Weekday names in Vietnamese
+        weekday_names = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+        
+        for i in range(7):
+            target_date = today - timedelta(days=i)
+            weekday = weekday_names[target_date.weekday()]
+            
+            if i == 0:
+                label = f"📅 Hôm nay ({target_date.strftime('%d/%m')})"
+            elif i == 1:
+                label = f"📅 Hôm qua ({target_date.strftime('%d/%m')})"
+            else:
+                label = f"📅 {weekday} ({target_date.strftime('%d/%m')})"
+            
+            callback_data = f"addpast:{target_date.strftime('%Y-%m-%d')}"
+            keyboard.append([InlineKeyboardButton(label, callback_data=callback_data)])
+        
+        # Add "Enter specific date" and cancel buttons
+        keyboard.append([InlineKeyboardButton("📆 Nhập ngày khác...", callback_data="addpast:custom")])
+        keyboard.append([InlineKeyboardButton("❌ Hủy", callback_data="addpast:cancel")])
+        
+        await update.message.reply_text(
+            "📝 *Ghi lại giao dịch*\n\n"
+            "Chọn ngày muốn ghi giao dịch:\n"
+            "_Sau khi chọn, gõ giao dịch như bình thường_",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+            
+    except Exception as e:
+        logger.error(f"Error in ghilai_command: {e}")
+        await update.message.reply_text("❌ Có lỗi xảy ra. Vui lòng thử lại.")
+
+
+async def handle_addpast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle day selection callback for adding transaction to past date"""
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    if not data.startswith("addpast:"):
+        return
+    
+    date_str = data[8:]  # Remove "addpast:" prefix
+    
+    if date_str == "cancel":
+        context.user_data.pop('addpast_date', None)
+        await query.edit_message_text("❌ Đã hủy.")
+        return
+    
+    if date_str == "custom":
+        # Ask user to enter a specific date
+        context.user_data['addpast_input_mode'] = True
+        keyboard = [[InlineKeyboardButton("❌ Hủy", callback_data="addpast:cancel")]]
+        await query.edit_message_text(
+            "📆 *Nhập ngày cần ghi giao dịch:*\n\n"
+            "Gõ theo format: `dd/mm/yyyy`\n"
+            "Ví dụ: `27/12/2025`",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+    
+    try:
+        # Parse date and save to user_data
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        context.user_data['addpast_date'] = target_date
+        
+        keyboard = [[InlineKeyboardButton("❌ Thoát chế độ ghi lại", callback_data="addpast:cancel")]]
+        
+        await query.edit_message_text(
+            f"✅ *Đang ghi cho ngày {target_date.strftime('%d/%m/%Y')}*\n\n"
+            f"Bây giờ hãy gõ giao dịch như bình thường:\n"
+            f"• `cafe 50k` → 50,000₫\n"
+            f"• `grab 35k` → 35,000₫\n\n"
+            f"_Tất cả giao dịch sẽ được ghi vào ngày {target_date.strftime('%d/%m/%Y')}_\n"
+            f"_Gõ /ghilai để chọn ngày khác hoặc bấm nút bên dưới để thoát_",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in addpast callback: {e}")
+        await query.edit_message_text("❌ Có lỗi xảy ra. Vui lòng thử lại.")
+
+
 async def edit_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /edit command - show last 7 days to select for editing transactions"""
     user = update.effective_user
@@ -1082,6 +1177,100 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
                 )
                 return
         
+        # Check if user is in addpast input mode (entering a specific date for ghilai)
+        addpast_input_mode = context.user_data.get('addpast_input_mode')
+        if addpast_input_mode:
+            context.user_data.pop('addpast_input_mode', None)
+            
+            try:
+                text_clean = text.replace("-", "/")
+                parts = text_clean.split("/")
+                
+                if len(parts) >= 2:
+                    day = int(parts[0])
+                    month = int(parts[1])
+                    year = int(parts[2]) if len(parts) >= 3 else datetime.now().year
+                    
+                    target_date = date(year, month, day)
+                    context.user_data['addpast_date'] = target_date
+                    
+                    keyboard = [[InlineKeyboardButton("❌ Thoát chế độ ghi lại", callback_data="addpast:cancel")]]
+                    
+                    await update.message.reply_text(
+                        f"✅ *Đang ghi cho ngày {target_date.strftime('%d/%m/%Y')}*\n\n"
+                        f"Bây giờ hãy gõ giao dịch như bình thường:\n"
+                        f"• `cafe 50k` → 50,000₫\n"
+                        f"• `grab 35k` → 35,000₫\n\n"
+                        f"_Tất cả giao dịch sẽ được ghi vào ngày {target_date.strftime('%d/%m/%Y')}_",
+                        parse_mode="Markdown",
+                        reply_markup=InlineKeyboardMarkup(keyboard)
+                    )
+                    return
+                else:
+                    await update.message.reply_text(
+                        "❌ Định dạng ngày không đúng. Vui lòng nhập theo format: `dd/mm/yyyy`",
+                        parse_mode="Markdown"
+                    )
+                    return
+                    
+            except ValueError:
+                await update.message.reply_text(
+                    "❌ Ngày không hợp lệ. Vui lòng nhập theo format: `dd/mm/yyyy`",
+                    parse_mode="Markdown"
+                )
+                return
+        
+        # Check if user is in addpast mode (recording transactions for a past date)
+        addpast_date = context.user_data.get('addpast_date')
+        if addpast_date:
+            # Parse the transaction and add with the custom date
+            parsed = parse_message(text)
+            if parsed.is_valid and parsed.amount > 0:
+                async with await get_session() as session:
+                    db_user = await get_or_create_user(session, user.id, user.username, user.full_name)
+                    
+                    # Detect category
+                    category = await find_category_from_user_history(session, db_user.id, parsed.note)
+                    if category is None:
+                        category = await detect_category(session, parsed.note)
+                    
+                    cat_id = category.id if category else None
+                    cat_name = category.name if category else "Khác"
+                    
+                    # Create datetime with the past date but current time
+                    now = datetime.now()
+                    tx_datetime = datetime(addpast_date.year, addpast_date.month, addpast_date.day, 
+                                          now.hour, now.minute, now.second)
+                    
+                    # Add transaction with past date
+                    tx = await add_transaction(
+                        session,
+                        user_id=db_user.id,
+                        amount=parsed.amount,
+                        note=parsed.note,
+                        raw_text=parsed.raw_text,
+                        category_id=cat_id,
+                        transaction_date=tx_datetime
+                    )
+                    
+                    # Learn keyword
+                    if cat_id and parsed.note:
+                        await learn_keyword_for_user(session, db_user.id, cat_id, parsed.note)
+                
+                keyboard = [[InlineKeyboardButton("❌ Thoát chế độ ghi lại", callback_data="addpast:cancel")]]
+                
+                await update.message.reply_text(
+                    f"✅ Đã ghi vào ngày *{addpast_date.strftime('%d/%m/%Y')}*:\n"
+                    f"💰 *{format_currency_full(parsed.amount)}*\n"
+                    f"📝 {parsed.note or 'Không có ghi chú'}\n"
+                    f"🏷️ {cat_name}\n\n"
+                    f"_Tiếp tục gõ giao dịch khác hoặc bấm nút để thoát_",
+                    parse_mode="Markdown",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+                return
+            # If not a valid transaction, fall through to normal handling
+        
         # Check if user is in edit mode (editing amount or note)
         edit_mode = context.user_data.get('edit_mode')
         if edit_mode:
@@ -1645,6 +1834,7 @@ def main() -> None:
             BotCommand("budget", "💰 Quản lý ngân sách"),
             BotCommand("export", "📄 Xuất file CSV"),
             BotCommand("excel", "📊 Xuất file Excel"),
+            BotCommand("ghilai", "📅 Ghi lại giao dịch"),
             BotCommand("help", "❓ Hướng dẫn"),
         ]
         await app.bot.set_my_commands(commands)
@@ -1664,6 +1854,7 @@ def main() -> None:
     application.add_handler(CommandHandler("delete", delete_command))
     application.add_handler(CommandHandler("insights", insights_command))
     application.add_handler(CommandHandler("link", link_command))
+    application.add_handler(CommandHandler("ghilai", ghilai_command))
     
     # Handle category selection callbacks
     application.add_handler(CallbackQueryHandler(handle_category_callback, pattern="^cat:"))
@@ -1677,6 +1868,9 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(handle_edit_option_callback, pattern="^eopt:"))
     application.add_handler(CallbackQueryHandler(handle_edit_category_callback, pattern="^ecat:"))
     application.add_handler(CallbackQueryHandler(handle_edit_input_callback, pattern="^einput:"))
+    
+    # Handle addpast (ghilai) callbacks
+    application.add_handler(CallbackQueryHandler(handle_addpast_callback, pattern="^addpast:"))
     
     # Handle voice messages
     application.add_handler(MessageHandler(filters.VOICE, handle_voice_message))
