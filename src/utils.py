@@ -2,8 +2,21 @@
 Utility functions for formatting currency, datetime, etc.
 """
 
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Optional
+
+# Vietnam timezone (GMT+7)
+VIETNAM_TZ = timezone(timedelta(hours=7))
+
+
+def get_vietnam_now() -> datetime:
+    """Get current datetime in Vietnam timezone (GMT+7)"""
+    return datetime.now(VIETNAM_TZ)
+
+
+def get_vietnam_today() -> date:
+    """Get current date in Vietnam timezone (GMT+7)"""
+    return get_vietnam_now().date()
 
 
 def format_currency(amount: float) -> str:
@@ -44,26 +57,26 @@ def format_datetime(dt: datetime) -> str:
 
 
 def get_today_start() -> datetime:
-    """Get the start of today (00:00:00)"""
-    today = date.today()
+    """Get the start of today (00:00:00) in Vietnam timezone"""
+    today = get_vietnam_today()
     return datetime(today.year, today.month, today.day, 0, 0, 0)
 
 
 def get_today_end() -> datetime:
-    """Get the end of today (23:59:59)"""
-    today = date.today()
+    """Get the end of today (23:59:59) in Vietnam timezone"""
+    today = get_vietnam_today()
     return datetime(today.year, today.month, today.day, 23, 59, 59)
 
 
 def get_month_start() -> datetime:
-    """Get the start of current month"""
-    today = date.today()
+    """Get the start of current month in Vietnam timezone"""
+    today = get_vietnam_today()
     return datetime(today.year, today.month, 1, 0, 0, 0)
 
 
 def get_month_end() -> datetime:
-    """Get the end of current month"""
-    today = date.today()
+    """Get the end of current month in Vietnam timezone"""
+    today = get_vietnam_today()
     if today.month == 12:
         next_month = datetime(today.year + 1, 1, 1)
     else:
@@ -81,28 +94,28 @@ def truncate_text(text: str, max_length: int = 50) -> str:
 
 
 def get_week_start() -> datetime:
-    """Get the start of current week (Monday)"""
-    today = date.today()
+    """Get the start of current week (Monday) in Vietnam timezone"""
+    today = get_vietnam_today()
     days_since_monday = today.weekday()
     monday = today - timedelta(days=days_since_monday)
     return datetime(monday.year, monday.month, monday.day, 0, 0, 0)
 
 
 def get_year_start() -> datetime:
-    """Get the start of current year"""
-    today = date.today()
+    """Get the start of current year in Vietnam timezone"""
+    today = get_vietnam_today()
     return datetime(today.year, 1, 1, 0, 0, 0)
 
 
 def get_yesterday_start() -> datetime:
-    """Get the start of yesterday (00:00:00)"""
-    yesterday = date.today() - timedelta(days=1)
+    """Get the start of yesterday (00:00:00) in Vietnam timezone"""
+    yesterday = get_vietnam_today() - timedelta(days=1)
     return datetime(yesterday.year, yesterday.month, yesterday.day, 0, 0, 0)
 
 
 def get_yesterday_end() -> datetime:
-    """Get the end of yesterday (23:59:59)"""
-    yesterday = date.today() - timedelta(days=1)
+    """Get the end of yesterday (23:59:59) in Vietnam timezone"""
+    yesterday = get_vietnam_today() - timedelta(days=1)
     return datetime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59)
 
 
@@ -112,7 +125,7 @@ def get_specific_date_range(day: int, month: int, year: Optional[int] = None) ->
     If year is None, uses current year.
     """
     if year is None:
-        year = date.today().year
+        year = get_vietnam_today().year
     try:
         target_date = date(year, month, day)
         start = datetime(target_date.year, target_date.month, target_date.day, 0, 0, 0)
@@ -131,7 +144,7 @@ def get_weekday_of_last_week(weekday: int) -> tuple[datetime, datetime]:
     Example: If today is Thursday Dec 26, and weekday=0 (Monday),
     returns Monday Dec 16 (last week's Monday)
     """
-    today = date.today()
+    today = get_vietnam_today()
     # Find last week's same weekday
     days_diff = today.weekday() - weekday + 7  # Go back to last week
     target_date = today - timedelta(days=days_diff)

@@ -11,7 +11,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import User, Category, Transaction, TransactionType, Budget
-from .utils import get_today_start, get_today_end, get_month_start, get_month_end, get_week_start, get_year_start
+from .utils import get_today_start, get_today_end, get_month_start, get_month_end, get_week_start, get_year_start, get_vietnam_now
 
 
 @dataclass
@@ -516,7 +516,7 @@ async def add_transaction(
         note=note,
         raw_text=raw_text,
         category_id=category_id,
-        date=transaction_date or datetime.now()
+        date=transaction_date or get_vietnam_now()
     )
     session.add(transaction)
     await session.commit()
@@ -595,7 +595,7 @@ async def get_spending_insights(
     """Get spending insights for user"""
     from datetime import timedelta
     
-    now = datetime.now()
+    now = get_vietnam_now()
     
     # This month
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)

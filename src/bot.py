@@ -46,7 +46,7 @@ from .services import (
     update_transaction,
     get_transaction_by_id
 )
-from .utils import format_currency, format_currency_full, format_date, format_datetime
+from .utils import format_currency, format_currency_full, format_date, format_datetime, get_vietnam_now, get_vietnam_today
 from .ai_service import is_ai_enabled, transcribe_voice, parse_with_ai, get_category_name_from_ai, generate_transaction_comment
 from .message_handler import process_text_message
 from .charts import generate_pie_chart, generate_bar_chart
@@ -149,7 +149,7 @@ async def today_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         expense_txs = [tx for tx in summary.transactions if not tx.category or tx.category.type.value != "INCOME"]
         
         # Build message
-        lines = [f"📅 *Hôm nay* ({format_date(datetime.now())})\n"]
+        lines = [f"📅 *Hôm nay* ({format_date(get_vietnam_now())})\n"]
         
         # Income section
         lines.append(f"💰 *Thu: {format_currency_full(summary.total_income)}*")
@@ -197,7 +197,7 @@ async def month_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             return
         
         # Build message
-        now = datetime.now()
+        now = get_vietnam_now()
         lines = [f"📊 *Tháng {now.month}/{now.year}*\n"]
         
         # Income section
@@ -323,7 +323,7 @@ async def export_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Send file
         output.seek(0)
         file_bytes = io.BytesIO(output.getvalue().encode('utf-8-sig'))  # UTF-8 BOM for Excel
-        file_bytes.name = f"chi_tieu_{datetime.now().strftime('%Y%m%d')}.csv"
+        file_bytes.name = f"chi_tieu_{get_vietnam_now().strftime('%Y%m%d')}.csv"
         
         await update.message.reply_document(
             document=file_bytes,
@@ -439,7 +439,7 @@ async def ghilai_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     try:
         # Build keyboard with last 7 days
         keyboard = []
-        today = datetime.now().date()
+        today = get_vietnam_today()
         
         # Weekday names in Vietnamese
         weekday_names = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
@@ -534,7 +534,7 @@ async def edit_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     try:
         # Build keyboard with last 7 days
         keyboard = []
-        today = datetime.now().date()
+        today = get_vietnam_today()
         
         # Weekday names in Vietnamese
         weekday_names = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
@@ -839,7 +839,7 @@ async def handle_edit_tx_callback(update: Update, context: ContextTypes.DEFAULT_
     if action == "back":
         # Go back to day selection - recreate the day selection keyboard
         keyboard = []
-        today = datetime.now().date()
+        today = get_vietnam_today()
         weekday_names = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
         
         for i in range(7):
@@ -1117,7 +1117,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
                 if len(parts) >= 2:
                     day = int(parts[0])
                     month = int(parts[1])
-                    year = int(parts[2]) if len(parts) >= 3 else datetime.now().year
+                    year = int(parts[2]) if len(parts) >= 3 else get_vietnam_today().year
                     
                     target_date = date(year, month, day)
                     
@@ -1189,7 +1189,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
                 if len(parts) >= 2:
                     day = int(parts[0])
                     month = int(parts[1])
-                    year = int(parts[2]) if len(parts) >= 3 else datetime.now().year
+                    year = int(parts[2]) if len(parts) >= 3 else get_vietnam_today().year
                     
                     target_date = date(year, month, day)
                     context.user_data['addpast_date'] = target_date
@@ -1238,7 +1238,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
                     cat_name = category.name if category else "Khác"
                     
                     # Create datetime with the past date but current time
-                    now = datetime.now()
+                    now = get_vietnam_now()
                     tx_datetime = datetime(addpast_date.year, addpast_date.month, addpast_date.day, 
                                           now.hour, now.minute, now.second)
                     
@@ -1443,7 +1443,7 @@ async def export_excel_command(update: Update, context: ContextTypes.DEFAULT_TYP
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
-        output.name = f"chi_tieu_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        output.name = f"chi_tieu_{get_vietnam_now().strftime('%Y%m%d')}.xlsx"
         
         await update.message.reply_document(
             document=output,
