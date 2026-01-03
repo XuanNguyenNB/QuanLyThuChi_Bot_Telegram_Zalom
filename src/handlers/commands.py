@@ -12,7 +12,7 @@ from telegram.ext import ContextTypes
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 
-from ..database import get_session
+from ..models import get_session
 from ..models import TransactionType
 from ..services import (
     get_or_create_user,

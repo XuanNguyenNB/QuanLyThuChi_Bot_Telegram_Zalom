@@ -8,7 +8,7 @@ from datetime import datetime, date
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from ..database import get_session
+from ..models import get_session
 from ..services import (
     get_or_create_user,
     get_transactions_by_date,

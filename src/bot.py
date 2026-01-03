@@ -19,7 +19,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-from .database import init_db, get_session
+from .models import init_db, get_session
 from .services import seed_default_categories
 
 # Import all handlers from handlers package

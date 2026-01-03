@@ -10,8 +10,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .database import get_session
-from .models import User, Transaction, Category, TransactionType
+from .models import get_session, User, Transaction, Category, TransactionType
 from .sheets_service import is_sheets_enabled, pull_transactions_from_sheet
 from .utils import get_vietnam_now
 

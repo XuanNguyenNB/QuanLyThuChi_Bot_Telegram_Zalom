@@ -8,7 +8,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from sqlalchemy import select, update as sql_update
 
-from ..database import get_session
+from ..models import get_session
 from ..models import Transaction, Category
 from ..services import (
     get_or_create_user,

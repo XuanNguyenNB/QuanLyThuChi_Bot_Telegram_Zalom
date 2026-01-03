@@ -7,7 +7,7 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from ..database import get_session
+from ..models import get_session
 from ..services import (
     get_or_create_user,
     get_user_budgets,

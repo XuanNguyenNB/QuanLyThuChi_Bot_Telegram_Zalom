@@ -9,7 +9,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from sqlalchemy import select
 
-from ..database import get_session
+from ..models import get_session
 from ..models import Category
 from ..services import (
     get_or_create_user,

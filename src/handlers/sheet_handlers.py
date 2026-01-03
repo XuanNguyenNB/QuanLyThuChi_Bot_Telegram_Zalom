@@ -8,7 +8,7 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from ..database import get_session
+from ..models import get_session
 from ..services import get_or_create_user, get_all_transactions
 from ..models import User, TransactionType
 from ..sheets_service import (
